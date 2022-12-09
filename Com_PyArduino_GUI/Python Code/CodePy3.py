@@ -5,13 +5,12 @@
 # > rpm value send to PC(python) <
 # > PC read fan rpm value <
 # > User set target rpm example 2000 rpm <
-# > PC calcuted value of fan speed percentage to match target rpm via PID < Not tested yet
+# > PC calcuted value of fan speed percentage to match target rpm via PID < bad result
 # > PC send value of fan speed percentage  to arduino <
 # > Arduino set rpm fan <
 # > LOOPBACK <
 
 # Version 3
-# Import library
 import serial
 import time
 import PID as pid
