@@ -1,9 +1,9 @@
 // # Target project >>
 // # Flow with Application Fan control with Python
 // # Example:
-// # > Arduino read Fan tacho convert to rpm value
-// # > rpm value send to PC(python)
-// # > PC read fan rpm value
+// # > Arduino read Fan tacho convert to rpm value <
+// # > rpm value send to PC(python) <
+// # > PC read fan rpm value 
 // # > User set target rpm example 2000 rpm
 // # > PC calcuted value of fan speed percentage to match target rpm via PID
 // # > PC send value of fan speed percentage  to arduino
@@ -97,12 +97,12 @@ void loop() {
 
 
   //Serial Output for PC communication
-  Serial.print(COUNT1);
-  Serial.print(" ");
-  Serial.print(COUNT2);
-  Serial.print(" ");
+  // Serial.print(COUNT1);
+  // Serial.print(" ");
+  // Serial.print(COUNT2);
+  // Serial.print(" ");
   Serial.print(RPM1);
-  Serial.print(" ");
+  Serial.print(",");
   Serial.println(RPM2);
 
   

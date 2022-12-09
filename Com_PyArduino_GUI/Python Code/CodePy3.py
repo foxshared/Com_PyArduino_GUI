@@ -6,11 +6,11 @@
 # > PC read fan rpm value <
 # > User set target rpm example 2000 rpm <
 # > PC calcuted value of fan speed percentage to match target rpm via PID < Not tested yet
-# > PC send value of fan speed percentage  to arduino
-# > Arduino set rpm fan
-# > LOOPBACK
+# > PC send value of fan speed percentage  to arduino <
+# > Arduino set rpm fan <
+# > LOOPBACK <
 
-# Version 2
+# Version 3
 # Import library
 import serial
 import time
@@ -18,11 +18,14 @@ import PID as pid
 
 # Define Variable
 # PID controller variable # need learn about Ziegler nichols
-KP = 0.36
-KI = 40.0
-KD = 0.0008099999999999997
+# KP = 0.36
+# KI = 40.0
+# KD = 0.0008099999999999997
+KP = 0.90
+KI = 100
+KD = 0.00128
 Setpoint = 2000  # Target RPM
-Delta_time = 0.1
+Delta_time = 0.001
 
 # Setup connection
 # (Port::comport that arduino connect)
@@ -46,36 +49,43 @@ def connection_data():
         pass
     # Depend total data that need to use
     # Separated value to single variable
-    if (len(final_data) == 2):  # Len use check total array
+    t_data = len(final_data)
+    if (t_data == 6):  # Len use check total array
         DATA1 = final_data[0]
         DATA2 = final_data[1]
+        # DATA3 = final_data[3]
     else:
         DATA1 = 0
         DATA2 = 0
-    return int(DATA1), int(DATA2)  # convert str to int
+        # DATA3 = 0
+    return DATA1, DATA2, data_receive,t_data  # convert str to int
 
 
 def control_speed_perRPM(in_Data):  # Control System via PID..............
     controller = pid.PID(KP, KI, KD, Setpoint) # Set PID and target rpm
-    controller.setLims(0, 30) # Set fan limit speed like (min,max)
+    controller.setLims(0, 16) # Set fan limit speed like (min,max)
     pid_ouput = controller.compute(in_Data, Delta_time) # pid start calculated for pid output
     return pid_ouput
 
 
-def connection_write(x):
+def connection_write(data1,data2):
     # Send value from pc to arduino
-    Convert2byteValue = bytes(x, 'utf-8')
-    Connection.write(Convert2byteValue)
-    time.sleep(0.05)
+    stringToSend = "{data1},{data2}".format(data1=data1,data2=data2)
+    stringWithMarkers = ('<')
+    stringWithMarkers += stringToSend
+    stringWithMarkers += ('>')
+    Connection.write(stringWithMarkers.encode('utf-8'))
+    time.sleep(0.001)
 
 
 while True:
     try:
-        RPM1, RPM2 = connection_data() #
-        PID_RPM1 = control_speed_perRPM(RPM1)
-        PID_RPM2 = control_speed_perRPM(RPM2)
+        RPM1, RPM2,reading,t_data = connection_data() #
+        PID_RPM1 = control_speed_perRPM(int(RPM1))
+        PID_RPM2 = control_speed_perRPM(int(RPM2))
+        connection_write(PID_RPM1,PID_RPM2)
 
-        print(RPM1, RPM2, PID_RPM1, PID_RPM2)
+        print(RPM1, RPM2, PID_RPM1, PID_RPM2, reading,t_data)
 
     # Press CTRL + C to exit
     except KeyboardInterrupt:
