@@ -10,10 +10,18 @@
 # > Arduino set rpm fan <
 # > LOOPBACK <
 
-# Version 3
+# Add PID realtime control
+# Add Graf
+
+# Version 4
+
 import serial
 import time
 import PID as pid
+import matplotlib.pyplot as plt
+import time
+import pyformulas as pf
+import numpy as np
 
 # Define Variable
 # PID controller variable # need learn about Ziegler nichols
@@ -21,18 +29,30 @@ import PID as pid
 # KI = 40.0
 # KD = 0.0008099999999999997
 KP = 0.90
-KI = 100
-KD = 0.00128
+KI = 200
+KD = 0.2
 Setpoint = 2000  # Target RPM
-Delta_time = 1
+Delta_time = 0.1
+
+minCtrl = 0
+maxCtrl = 15
+
+array1 = []
+array2 = []
+arraytime = []
+
 
 # Setup connection
 # (Port::comport that arduino connect)
 # (Baudrate::baudrate that use in arduino)
 # (Timeout::Add some delay when send&get value)
-Connection = serial.Serial(port='COM6', baudrate=9600, timeout=0.1)
+Connection = serial.Serial(port='COM12', baudrate=9600, timeout=0.1)
 Connection.close()  # close any connected serial connection
 Connection.open()  # open serial connection
+
+fig = plt.figure()
+screen = pf.screen(title='Plot')
+start = time.time()
 
 
 def connection_data():
@@ -60,9 +80,9 @@ def connection_data():
     return DATA1, DATA2, data_receive, t_data  # convert str to int
 
 
-def control_speed_perRPM(in_Data):  # Control System via PID..............
+def control_speed_perRPM(in_Data, min,max):  # Control System via PID..............
     controller = pid.PID(KP, KI, KD, Setpoint)  # Set PID and target rpm
-    controller.setLims(0, 16)  # Set fan limit speed like (min,max)
+    controller.setLims(min, max)  # Set fan limit speed like (min,max)
     # pid start calculated for pid output
     pid_ouput = controller.compute(in_Data, Delta_time)
     return pid_ouput
@@ -79,12 +99,35 @@ def connection_write(data1, data2):
     time.sleep(0.001)
 
 
+def graf(d1, d2, t):
+    speed1 = d1
+    speed2 = d2
+    array1.append(speed1)
+    array2.append(speed2)
+    arraytime.append(t+1)
+    plt.xlim(t+1, t)
+    plt.ylim(0, 4000)
+    plt.plot(arraytime, array1, c='blue')
+    plt.plot(arraytime, array2, c='red')
+
+    fig.canvas.draw()
+
+    image = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+    image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+    screen.update(image)
+
+
 while True:
     try:
+        t = time.time() - start
         RPM1, RPM2, reading, t_data = connection_data()
-        PID_RPM1 = control_speed_perRPM(int(RPM1))  # calculated pid for fan1
-        PID_RPM2 = control_speed_perRPM(int(RPM2))  # calculated pid for fan1
-        connection_write(PID_RPM1, PID_RPM2)
+        RPM1 = int(RPM1)
+        RPM2 = int(RPM2)
+        PID_RPM1 = control_speed_perRPM(RPM1,minCtrl,maxCtrl)  # calculated pid for fan1
+        PID_RPM2 = control_speed_perRPM(RPM2,minCtrl,maxCtrl)  # calculated pid for fan1
+        graf(RPM1, RPM2, t=t)
+        connection_write(PID_RPM1, PID_RPM2)  # disable to debug
 
         print(RPM1, RPM2, PID_RPM1, PID_RPM2, reading, t_data)
 

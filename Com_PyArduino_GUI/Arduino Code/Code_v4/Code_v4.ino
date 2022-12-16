@@ -10,7 +10,7 @@
 // # > Arduino set rpm fan <
 // # > LOOPBACK <
 
-// Version 3
+// Version 4
 
 // Reminder use arduino Nano with Shield expension to reduce Tacho noise
 // Using Arduino UNO need extra circuit to remove noise
@@ -50,11 +50,11 @@ char *strings[32];
 char *ptr = NULL;
 const char *delimiter = ",";
 /////////////////////////////////
-int new_speed1;
-int new_speed2;
+int new_speed1 = 13;
+int new_speed2 = 13;
 
 void setup() {
-  delay(8000);  // 8 second delay for intialze arduino prevent fan 100% speed
+  delay(6000);  // 8 second delay for intialze arduino prevent fan 100% speed
 
   //Setup relay control
   pinMode(RELAY, OUTPUT);
