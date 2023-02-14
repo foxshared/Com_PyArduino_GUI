@@ -10,10 +10,13 @@
 # > Arduino set rpm fan <
 # > LOOPBACK <
 
-# Add PID realtime control
+# Add PID realtime control using txt
 # Add Graf
 
-# Version 4
+# Idea to make to same as setpoint....use final output find its average with time in 30sec and add as offset to get zero error
+
+
+# Version 5
 import os
 import serial
 import time
@@ -37,13 +40,16 @@ os.chdir(folder_path)
 KP = 0.90
 KI = 200
 KD = 0.2
-Setpoint = 2000  # Target RPM
+# Setpoint = 2000  # Target RPM
 Delta_time = 0.1
+
+t = 0.0
+last_t = 0.0
 
 config = configparser.ConfigParser()
 
-minCtrl = 0.0
-maxCtrl = 15.0
+minCtrl = -100
+maxCtrl = 100
 
 array1 = []
 array2 = []
@@ -54,13 +60,19 @@ arraytime = []
 # (Port::comport that arduino connect)
 # (Baudrate::baudrate that use in arduino)
 # (Timeout::Add some delay when send&get value)
-Connection = serial.Serial(port='COM12', baudrate=9600, timeout=0.001)
+Connection = serial.Serial(port='COM5', baudrate=9600, timeout=0.1)
 Connection.close()  # close any connected serial connection
 Connection.open()  # open serial connection
 
 fig = plt.figure()
 screen = pf.screen(title='Plot')
+
 start = time.time()
+start_ = time.time()
+
+average_count = 0
+offset1 = 0
+offset2 = 0
 
 
 def connection_data():
@@ -89,12 +101,19 @@ def connection_data():
 
 
 # Control System via PID..............
-def control_speed_perRPM(in_Data, min, max):
+def control_speed_perRPM(in_Data, min, max, dt):
     controller = pid.PID(KP, KI, KD, Setpoint)  # Set PID and target rpm
     controller.setLims(min, max)  # Set fan limit speed like (min,max)
     # pid start calculated for pid output
-    pid_ouput = controller.compute(in_Data, Delta_time)
-    return pid_ouput
+    pid_ouput = controller.compute(in_Data, dt)
+    return int(pid_ouput)
+
+
+def calSpeedPer(Max_setpoint, set, input_):
+    cal_speed = int((set/Max_setpoint)*100)
+    cal_error = int((input_/Max_setpoint)*100)  # calculate speed error
+    final_cal = cal_speed + cal_error
+    return cal_speed, cal_error, final_cal
 
 
 def connection_write(data1, data2):
@@ -105,16 +124,18 @@ def connection_write(data1, data2):
     stringWithMarkers += stringToSend
     stringWithMarkers += ('>')  # end marker to arduino read
     Connection.write(stringWithMarkers.encode('utf-8'))  # encode
-    time.sleep(0.001)
+    # time.sleep(0.1)
 
 
 def graf(d1, d2, t):
     speed1 = d1
     speed2 = d2
+
     array1.append(speed1)
     array2.append(speed2)
-    arraytime.append(t+1)
-    plt.xlim(t+1, t)
+    arraytime.append(t)
+
+    plt.xlim(0, 10)
     plt.ylim(0, 4000)
     plt.plot(arraytime, array1, c='blue')
     plt.plot(arraytime, array2, c='red')
@@ -133,32 +154,81 @@ def get_save(type):
     return data_read[type]
 
 
+def limit_k(out_, max, min):
+
+    if out_ > max and max is not None:out_ = max
+    elif out_ < min and min is not None:out_ = min
+    return out_
+
+
+    # if out_ >= max:
+    #     out_ = max
+    # elif out_ < min:
+    #     out_ = min
+    # return out_
+
+
 while True:
     try:
-        t = time.time() - start
+        start = time.time()
+        t_ = time.time() - start_
+        average_count = average_count + 1
+
         RPM1, RPM2, reading, t_data = connection_data()
         RPM1 = int(RPM1)
         RPM2 = int(RPM2)
 
-        Setpoint = float(get_save("setpoint"))
+        Max_setpoint = int(get_save("max_Setpoint"))
+        Setpoint = int(get_save("setpoint"))
         KP = float(get_save("KP"))
         KI = float(get_save("KI"))
         KD = float(get_save("KD"))
-        Delta_time = float(get_save("Delta_time"))
+        Delta_time = float(get_save("Delta_time")) + last_t
+        Manual = int(get_save("Manual_speed"))
+        mode = int(get_save("Mode"))
+
+        # offset = int(get_save("offset"))
 
         PID_RPM1 = control_speed_perRPM(
-            RPM1, minCtrl, maxCtrl)  # calculated pid for fan1
+            RPM1, minCtrl, maxCtrl, Delta_time)  # calculated pid for fan1
         PID_RPM2 = control_speed_perRPM(
-            RPM2, minCtrl, maxCtrl)  # calculated pid for fan1
-        graf(RPM1, RPM2, t=t)
-        connection_write(PID_RPM1, PID_RPM2)  # disable to debug
+            RPM2, minCtrl, maxCtrl, Delta_time)  # calculated pid for fan2
 
-        print(RPM1, RPM2, PID_RPM1, PID_RPM2, reading,
-              t_data, Setpoint, KP, KI, KD, Delta_time)
+        if average_count >= 40:
+            offset1 = PID_RPM1
+            offset2 = PID_RPM2
+            average_count = 0
+
+        S1 = PID_RPM1+offset1
+        S2 = PID_RPM2+offset2
+
+        S1_ = limit_k(S1, 99, 0)
+        S2_ = limit_k(S2, 99, 0)
+
+        if mode == 0:
+            connection_write(S1_, S2_)  # auto speed
+        elif mode == 1:
+            connection_write(Manual, Manual)  # Manual speed
+
+        graf(RPM1, RPM2, t=t_)
+        if t_ > 10:
+            array1.clear()
+            array2.clear()
+            arraytime.clear()
+            t_ = 0
+            start_ = time.time()
+            plt.cla()
+
+        print_out = "Target== {target} ,RPM1: {rpm1} RPM2: {rpm2}, Output: 1({fin1}), 2({fin2}), ({all})".format(
+            target=Setpoint, rpm1=RPM1, rpm2=RPM2, fin1=S1_, fin2=S2_, all=reading)
+        print(print_out)
+
+        t = time.time() - start
+        last_t = t
 
     # Press CTRL + C to exit
     except KeyboardInterrupt:
         print("Exit")
-        connection_write(13, 13)
+        connection_write(1000, 1000)
         Connection.close
         exit(0)

@@ -1,0 +1,10 @@
+[SETUP]
+max_Setpoint = 5940
+setpoint = 1000
+KP = 0.1870000
+KI = 0.0000000
+KD = 0.0000000
+Delta_time = 0.01
+offset = 0
+mode = 0
+Manual_speed = 70

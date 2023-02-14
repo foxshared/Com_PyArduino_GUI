@@ -1,0 +1,25 @@
+[SETUP]
+setpoint = 3000
+KP = 0.36
+KI = 0
+KD = 0.0001
+Delta_time = 0.000001
+mode = 0
+Manual_speed = 13
+
+
+[SETUP]
+max_Setpoint = 5940
+setpoint = 2900
+KP = 0.009
+KI = 0.005
+KD = 0.000019
+Delta_time = 0.01
+offset = 0
+mode = 0
+Manual_speed = 4
+
+KP = 0.36
+KI = 40.0
+KD = 0.0008099999999999997
+Setpoint = 2000  # Target RPM

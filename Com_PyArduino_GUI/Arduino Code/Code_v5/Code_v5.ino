@@ -10,7 +10,7 @@
 // # > Arduino set rpm fan <
 // # > LOOPBACK <
 
-// Version 4
+// Version 5
 
 // Reminder use arduino Nano with Shield expension to reduce Tacho noise
 // Using Arduino UNO need extra circuit to remove noise
@@ -22,12 +22,12 @@ int RELAY = 8;  // Relay to turn on Fan fix problem cannot upload program to ard
 //Fan control def
 const byte OC1A_PIN = 9;         // Pwm top Fan
 const byte OC1B_PIN = 10;        // Pwm bottom Fan
-const word PWM_FREQ_HZ = 25000;  //Adjust this value to adjust the frequency (Frequency in HZ!) (Set currently to 25kHZ)
+const word PWM_FREQ_HZ = 60000;  //Adjust this value to adjust the frequency (Frequency in HZ!) (Set currently to 25kHZ)
 const word TCNT1_TOP = 16000000 / (2 * PWM_FREQ_HZ);
 
 //Fan read def
-const int FAN_IN1 = 3;  // Tach top Fan
-const int FAN_IN2 = 2;  // Tach bottom Fan
+const int FAN_IN1 = 2;  // Tach top Fan
+const int FAN_IN2 = 3;  // Tach bottom Fan
 unsigned long COUNT1 = 0;
 unsigned long COUNT2 = 0;
 unsigned long previousMillis = 0;
@@ -37,24 +37,21 @@ unsigned long RPM2;
 // Set fan Speed def
 int FAN_SPEED1 = 0;  // Target speed top Fan
 int FAN_SPEED2 = 0;  // Target speed Bottom Fan
+int const_SPEED = 50;
+int PC_control = 0;
 
-//
+// Variable for serial communication
 const byte numChars = 32;
 char receivedChars[numChars];
 boolean newData = false;
-
-////////////////////////////////
-// char mystring[] = "20,0,10,25,1010";
 char tempChars[sizeof(receivedChars)];
 char *strings[32];
 char *ptr = NULL;
 const char *delimiter = ",";
-/////////////////////////////////
-int new_speed1 = 13;
-int new_speed2 = 13;
+
 
 void setup() {
-  delay(6000);  // 8 second delay for intialze arduino prevent fan 100% speed
+  delay(1000);  // 8 second delay for intialze arduino prevent fan 100% speed
 
   //Setup relay control
   pinMode(RELAY, OUTPUT);
@@ -92,12 +89,6 @@ void setup() {
 void loop() {
 
   // Set Fan speed
-
-  FAN_SPEED1 = new_speed1;
-  FAN_SPEED2 = new_speed2;
-  // FAN_SPEED1 = 13;
-  // FAN_SPEED2 = 13;
-
   setPwmDuty(FAN_SPEED1, 1);
   setPwmDuty(FAN_SPEED2, 2);
 
@@ -106,7 +97,7 @@ void loop() {
 
   // Read RPM of Fan
   unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis > 990) {
+  if (currentMillis - previousMillis > 1000) {
     previousMillis = currentMillis;
     RPM1 = COUNT1 * 30;
     RPM2 = COUNT2 * 30;
@@ -114,29 +105,32 @@ void loop() {
     COUNT2 = 0;
   }
 
-  recvWithStartEndMarkers();
-  replyToPython();
-  ////////////////////////////
+  // Serial Communication loop
+  recvWithStartEndMarkers();  // Where the read data from PC happen with using Marker <Data> out as receivedChars
+  replyToPython();            // Send any data to PC through serial
   byte index = 0;
-  // strcpy(tempChars, mystring);  // **** copy array to preserve original
-  strcpy(tempChars, receivedChars);  // **** copy array to preserve original
-
-  ptr = strtok(tempChars, delimiter);
-
+  strcpy(tempChars, receivedChars);    // Copy array to preserve original // receivedChars from recvWithStartMarkers()
+  ptr = strtok(tempChars, delimiter);  // Split array with ","
   while (ptr != NULL) {
     strings[index] = ptr;
     index++;
-
     ptr = strtok(NULL, delimiter);
   }
-  new_speed1 = atoi(strings[0]);
-  new_speed2 = atoi(strings[1]);
-  // Serial.println(index);
-  // for (int n = 0; n < index; n++) {
-  //   // Serial.println(strings[n]);
-  // }
-  // Serial.println(strings[0]);
-  //////////////////////////////////////////
+  // Value from PC set the speed of fan
+  if (Serial.available() > 0) {
+    FAN_SPEED1 = atoi(strings[0]);
+    FAN_SPEED2 = atoi(strings[1]);
+    PC_control = 1;
+
+    if(FAN_SPEED1 >=1000 && FAN_SPEED2 >=1000) {
+      PC_control = 0;
+    }
+  } 
+
+  if(PC_control  == 0){
+    FAN_SPEED1 = const_SPEED;
+    FAN_SPEED2 = const_SPEED;
+  }
 }
 
 void COUNTER1() {
@@ -201,8 +195,8 @@ void replyToPython() {
     // Serial.print(",");
     // Serial.print(strings[1]);
     ///////////////////////
-    Serial.print(new_speed1);
+    Serial.print(FAN_SPEED1);
     Serial.print(",");
-    Serial.print(new_speed2);
+    Serial.print(FAN_SPEED2);
   }
 }
